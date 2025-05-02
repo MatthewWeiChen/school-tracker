@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  # PostgreSQL database service
+  postgres:
+    image: arm64v8/postgres:13 # ARM-optimized image for M1/M2 Macs
+    container_name: school-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: school_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    command: ["postgres", "-c", "listen_addresses=*"] # Allow external connections
+
+  # Next.js application service
+  # Uncomment this once your application is ready to be containerized
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: school-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "postgresql://postgres:password@postgres:5432/school_db?connect_timeout=30&pool_timeout=30&socket_timeout=30"
+      NODE_ENV: development
+    depends_on:
+      - postgres
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+volumes:
+  postgres-data:

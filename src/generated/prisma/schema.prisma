@@ -1,0 +1,152 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../src/generated/prisma"
+  binaryTargets = ["native", "darwin-arm64", "linux-arm64-openssl-1.1.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//Models 
+
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(TEACHER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classes        Class[] //Classes taught by this user (as a teacher)
+  studentNotes   StudentNote[] // Notes written by this user about students 
+  attendanceData AttendanceData[] //Attendance records created by this user
+}
+
+//Class Model 
+
+model Class {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations 
+  teacher    User           @relation(fields: [teacherId], references: [id])
+  teacherId  String
+  students   ClassStudent[] // Many-to-many relation with Student 
+  attendance Attendance[] // Attendance records for this class
+}
+
+// StudentNote model - notes/observations about students written by teachers 
+
+model StudentNote {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations 
+  student   Student @relation(fields: [studentId], references: [id])
+  studentId String
+  author    User    @relation(fields: [authorId], references: [id])
+  authorId  String
+}
+
+// AttendanceData model - summary attendance statistics
+model AttendanceData {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  present   Int
+  absent    Int
+  late      Int
+  excused   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdBy User   @relation(fields: [userId], references: [id])
+  userId    String
+}
+
+// Additional required models for a complete schema:
+
+// Student model - represents a student in the school
+model Student {
+  id             String   @id @default(cuid())
+  firstName      String
+  lastName       String
+  email          String?  @unique
+  dateOfBirth    DateTime
+  address        String?
+  phone          String?
+  guardianName   String?
+  guardianPhone  String?
+  guardianEmail  String?  @unique
+  enrollmentDate DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  classes    ClassStudent[] // Many-to-many relation with Class
+  attendance Attendance[] // Attendance records for this student
+  notes      StudentNote[] // Notes about this student
+}
+
+// ClassStudent model - junction table for many-to-many relation between Class and Student
+model ClassStudent {
+  id       String   @id @default(cuid())
+  joinedAt DateTime @default(now())
+
+  // Relations
+  class     Class   @relation(fields: [classId], references: [id])
+  classId   String
+  student   Student @relation(fields: [studentId], references: [id])
+  studentId String
+
+  // Unique constraint to prevent duplicate enrollments
+  @@unique([classId, studentId])
+}
+
+// Attendance model - individual attendance records
+model Attendance {
+  id        String   @id @default(cuid())
+  date      DateTime
+  status    Status
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  class     Class   @relation(fields: [classId], references: [id])
+  classId   String
+  student   Student @relation(fields: [studentId], references: [id])
+  studentId String
+
+  // Unique constraint to prevent duplicate attendance records
+  @@unique([date, classId, studentId])
+}
+
+// Status enum for attendance
+enum Status {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
